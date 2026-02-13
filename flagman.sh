@@ -69,17 +69,18 @@ GET_MAN(){ # for one lib
       return
     else
       echo "$res" > "$_tmp" || die "Couldn't write in tmp file"
-      while IFS=$'\n' read part ; do
-        [[ $part =~ 
+      while IFS="\n       -" read -r part ; do
+        echo -e "$part"
         if (( $# != 0 ));then
           for f in $@;do
-            if [[ "$part" == *$f* ]];then
+            if [[ "$part" =~ ^[" "]+["-"]+["\S "]+["\n"]?[" "]+["\S \n"]+$ ]];then
+              #echo -e "$part"
               WANTED+=("$part")
             fi
             PARTS+=("$part")
           done
         fi
-      done < "$_tmp"
+      done <<< "$(cat $_tmp | tr '\n\n' '\n' )"
     fi
   else
     err "${lib} doesn't exist."
@@ -88,13 +89,13 @@ GET_MAN(){ # for one lib
 
   #echo "${PARTS[16]}"
 
-  for (( i=0 ; i<${#PARTS[@]} ; i++ ));do
-    echo -e "${i}: ${PARTS[i]}"
+  for (( i=0 ; i<${#WANTED[@]} ; i++ ));do
+    echo -e "${i}: ${WANTED[i]}"
   done
 }
 
 #(( $# == 0 )) && { show_help ; exit 0 ;}
-GET_MAN "mkdir" "-p"
+GET_MAN "curl" "-p"
 while (($#)); do
   case "$1" in
     -h|--help) show_help ; exit 0 ;;
