@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 #flagman - A CLI to show man pages for a specific flag.
 
@@ -52,15 +53,19 @@ err()  { printf '%s[ ERR ]%s %s\n' "$_b$_red" "$_d" "$*" >&2; }
 COLOR=false
 LIST=()
 
+regex='/[ ]{3}[-]{1,2}[\s ]*([\n]{1}[ ]{3}[\s ]*)*/g'
+#regex='[ ]{3}[-]{1,2}[^[:space:] ]*([\n]*[ ]{3}[^[:space:] ]*)*'
+#regex='[ ]{3}[-]{1,2}([\n]{1}[ ]{3}[^[:space:] ]*)*' #[^[:space:] ]*' #([\n]{1}[ ]{3}[^[:space:] ]*)*'
+
 GET_MAN(){ # for one lib
   lib="${1,,}" ; shift
   PARTS=()
   WANTED=()
-  if [[ ! $(find "${_tmpdir}/." -type f -name "${lib}") ]] ;then
-    _tmp="$(mktemp "${_tmpdir}/${lib}.XXXXXX.txt")" || die "Couldn't make tmp file"
-  else
-    _tmp="$(find "${_tmpdir}/." -type f -name "${lib}")"
-  fi
+  #if [[ ! $(find "${_tmpdir}/." -type f -name "${lib}") ]] ;then
+  #  _tmp="$(mktemp "${_tmpdir}/${lib}.XXXXXX.txt")" || die "Couldn't make tmp file"
+  #else
+  #  _tmp="$(find "${_tmpdir}/." -type f -name "${lib}")"
+  #fi
 
   if have "$lib";then
     res=$(man "$lib")
@@ -68,40 +73,42 @@ GET_MAN(){ # for one lib
       err "${lib} doesn't have a man page"
       return
     else
-      echo "$res" > "$_tmp" || die "Couldn't write in tmp file"
-      while IFS="\n       -" read -r part ; do
-        echo -e "$part"
-        if (( $# != 0 ));then
-          for f in $@;do
-            if [[ "$part" =~ ^[" "]+["-"]+["\S "]+["\n"]?[" "]+["\S \n"]+$ ]];then
-              #echo -e "$part"
-              WANTED+=("$part")
-            fi
-            PARTS+=("$part")
-          done
-        fi
-      done <<< "$(cat $_tmp | tr '\n\n' '\n' )"
+      #echo "$res" > "$_tmp" || die "Couldn't write in tmp file"
+      if (( $# != 0 ));then
+        for f in $@;do
+          found=$(python3 "reg.py" "$res" "$f")
+          if $COLOR;then
+            echo -e "$found" | grep --color "$f"
+          else
+            echo -e "$found"
+          fi
+        done
+      fi
     fi
   else
-    err "${lib} doesn't exist."
-    return
+    die "${lib} doesn't exist."
   fi
 
   #echo "${PARTS[16]}"
 
-  for (( i=0 ; i<${#WANTED[@]} ; i++ ));do
-    echo -e "${i}: ${WANTED[i]}"
-  done
+  #for (( i=0 ; i<${#WANTED[@]} ; i++ ));do
+  #  echo -e "${i}: ${WANTED[i]}"
+  #done
 }
 
+
+
 #(( $# == 0 )) && { show_help ; exit 0 ;}
-GET_MAN "curl" "-p"
+#GET_MAN "grep" "-p"
 while (($#)); do
   case "$1" in
     -h|--help) show_help ; exit 0 ;;
     -C|--color) COLOR=true; shift ;;
+    -l|--lib) LIB="${1:?}";shift 2 ;;
     --) shift ; break ;;
     -*) die "Unknown option: $1" ;;
     *) LIST+=("$1") ; shift ;;
   esac
 done
+
+GET_MAN
