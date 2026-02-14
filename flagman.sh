@@ -16,6 +16,7 @@ elif [[ "$DEBUG" == true ]]; then
   set -x
 fi
 
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
 print_help(){
   cat <<EOF
@@ -28,11 +29,11 @@ _tmpdir="$HOME/.manflag/tmp"
 [[ ! -d "$_tmpdir" ]] && mkdir -p "$_tmpdir"
 cleanup() {
   local code=$?
+  [[ -n ${_tmpdir:-} && -d "$_tmpdir" ]] && rm -rf -- "$_tmpdir"
   if [[ $code -eq 0 ]] ;then
-    ok "done"
+    $DEBUG && ok "done"
   else
-    [[ -n ${_tmpdir:-} && -d "$_tmpdir" ]] && rm -rf -- "$_tmpdir"
-    warn "exit code $code"
+    $DEBUG && warn "exit code $code"
   fi
   exit "$code"
 }
@@ -50,35 +51,50 @@ warn() { printf '%s[WARN]%s %s\n' "$_b$_yel" "$_d" "$*" >&2; }
 ok()   { printf '%s[ OK ]%s %s\n' "$_b$_grn" "$_d" "$*" >&2; }
 die()  { printf '%s[ ERR ]%s %s\n' "$_b$_red" "$_d" "$*" >&2; exit 1; }
 err()  { printf '%s[ ERR ]%s %s\n' "$_b$_red" "$_d" "$*" >&2; }
-COLOR=false
-LIST=()
 
-regex='/[ ]{3}[-]{1,2}[\s ]*([\n]{1}[ ]{3}[\s ]*)*/g'
-#regex='[ ]{3}[-]{1,2}[^[:space:] ]*([\n]*[ ]{3}[^[:space:] ]*)*'
-#regex='[ ]{3}[-]{1,2}([\n]{1}[ ]{3}[^[:space:] ]*)*' #[^[:space:] ]*' #([\n]{1}[ ]{3}[^[:space:] ]*)*'
+COLOR=${COLOR:-false}
+LIB=""
+FLAGS=()
 
 GET_MAN(){ # for one lib
   lib="${1,,}" ; shift
   PARTS=()
   WANTED=()
-  #if [[ ! $(find "${_tmpdir}/." -type f -name "${lib}") ]] ;then
-  #  _tmp="$(mktemp "${_tmpdir}/${lib}.XXXXXX.txt")" || die "Couldn't make tmp file"
-  #else
-  #  _tmp="$(find "${_tmpdir}/." -type f -name "${lib}")"
-  #fi
+
+  _tmp="$(mktemp "$_tmpdir/${lib}.txt.XXXXXX")" || die "mktemp failed"
 
   if have "$lib";then
-    res=$(man "$lib")
-    if [[ $res == "No manual"* ]];then
+    man "$lib" > "$_tmp" || die "Failed Writing the tmp file"
+    if [[ "$(man $lib | head -n 1)" == "No manual"* ]];then
       err "${lib} doesn't have a man page"
       return
     else
-      #echo "$res" > "$_tmp" || die "Couldn't write in tmp file"
       if (( $# != 0 ));then
-        for f in $@;do
-          found=$(python3 "reg.py" "$res" "$f")
-          if $COLOR;then
-            echo -e "$found" | grep --color "$f"
+        for f in ${FLAGS[@]};do
+          found="$(python3 - "$_tmp" "$f" <<'PY'
+import re
+import sys
+file=sys.argv[1]
+flag=sys.argv[2]
+regex = r"[ ]{3}[-]{1,2}[\S ]*([\n]{1}[ ]{3}[\S ]*)*"
+data=open(file).read()
+matches = re.finditer(regex, data)
+found=[]
+for matchNum, match in enumerate(matches, start=1):
+    g=match.group()
+    if flag in g:
+      found.append(g)
+
+if len(g) == 0:
+    print("No Result")
+else:
+    for p in found:
+        print(p)
+PY
+)"
+          echo -e "\n --- ${f}: --- \n"
+          if $COLOR ; then
+            echo "${found//$f/$_red$f$_d}"
           else
             echo -e "$found"
           fi
@@ -88,27 +104,38 @@ GET_MAN(){ # for one lib
   else
     die "${lib} doesn't exist."
   fi
-
-  #echo "${PARTS[16]}"
-
-  #for (( i=0 ; i<${#WANTED[@]} ; i++ ));do
-  #  echo -e "${i}: ${WANTED[i]}"
-  #done
 }
 
-
+FLAG_PARSE(){
+  flags="$@"
+  while IFS=" " read -a flags ; do
+    FLAGS+=(${flags[@]})
+  done <<< "${flags}"
+}
 
 #(( $# == 0 )) && { show_help ; exit 0 ;}
 #GET_MAN "grep" "-p"
+ARGS=()
 while (($#)); do
   case "$1" in
-    -h|--help) show_help ; exit 0 ;;
-    -C|--color) COLOR=true; shift ;;
-    -l|--lib) LIB="${1:?}";shift 2 ;;
-    --) shift ; break ;;
-    -*) die "Unknown option: $1" ;;
-    *) LIST+=("$1") ; shift ;;
+    -h|--help) print_help ; exit 0 ;;
+    --lib) LIB="${2:?$(die "Need a Lib")}";shift 2 ;;
+    --flags) shift ; ARGS+=("$@") ; shift $# ;;
+    --) shift ; ARGS+=("$@") ; break ;;
+    -*) ARGS+=("$@") ; shift $# ;;
+    *) ARGS+=("$@") ; shift $# ;;
   esac
 done
 
-GET_MAN
+if ! have python3;then
+  die "Python3 is required"
+fi
+
+echo "Lib: ${LIB}"
+echo "Flags: ${ARGS[@]}"
+if have $LIB ; then
+  FLAG_PARSE "${ARGS[@]}"
+  GET_MAN "$LIB" "$FLAGS[@]"
+else
+  die "'${LIB}' Not Found"
+fi
