@@ -64,7 +64,7 @@ GET_MAN(){ # for one lib
   _tmp="$(mktemp "$_tmpdir/${lib}.txt.XXXXXX")" || die "mktemp failed"
 
   if have "$lib";then
-    man "$lib" > "$_tmp" || die "Failed Writing the tmp file"
+    man "$lib" > "$_tmp" 2>/dev/null || die "Failed Writing the tmp file"
     if [[ "$(man $lib | head -n 1)" == "No manual"* ]];then
       err "${lib} doesn't have a man page"
       return
