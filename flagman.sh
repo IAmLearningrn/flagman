@@ -85,7 +85,7 @@ for matchNum, match in enumerate(matches, start=1):
     if flag in g:
       found.append(g)
 
-if len(g) == 0:
+if len(found) == 0:
     print("No Result")
 else:
     for p in found:
