@@ -19,9 +19,43 @@ fi
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
 print_help(){
-  cat <<EOF
+  cat <<'EOF'
+flagman - show the relevant parts of a man page for specific option flags
 
+USAGE
+  flagman.sh --lib <command> -- <flag> [<flag> ...]
 
+EXAMPLES
+  # show the section(s) that mention -f in man(1)
+  ./flagman.sh --lib man -- -f
+
+  # find multiple flags at once
+  ./flagman.sh --lib curl -- -f -k --compressed
+
+  # enable color highlighting of the searched flag(s)
+  COLOR=true ./flagman.sh --lib curl -- -k
+
+OPTIONS
+  --lib <command>
+      Command/library name to read its man page (e.g. curl, grep, man).
+
+  -- <flags...>
+      Everything after '--' is treated as flags to search for.
+      This allows passing flags like -f, -k, --help without confusing flagman itself.
+
+ENVIRONMENT
+  COLOR=true
+      Highlight matching flags in output (simple string highlight).
+
+  DEBUG=true
+      Print debug traces.
+
+  TRACE=true
+      Enable bash xtrace + error trap.
+
+NOTES
+  - Requires: man, python3
+  - Some systems print warnings from 'man' on stderr. flagman silences these by default.
 EOF
 }
 
