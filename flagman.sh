@@ -98,11 +98,11 @@ GET_MAN(){ # for one lib
   _tmp="$(mktemp "$_tmpdir/${lib}.txt.XXXXXX")" || die "mktemp failed"
 
   if have "$lib";then
-    man "$lib" > "$_tmp" 2>/dev/null || die "Failed Writing the tmp file"
-    if [[ "$(man $lib | head -n 1)" == "No manual"* ]];then
-      err "${lib} doesn't have a man page"
+    if [[ -z "$(man $lib)" ]];then
+      die "${lib} doesn't have a man page"
       return
     else
+      man "$lib" > "$_tmp" 2>/dev/null || die "Failed Writing the tmp file"
       if (( $# != 0 ));then
         for f in ${FLAGS[@]};do
           found="$(python3 - "$_tmp" "$f" <<'PY'
@@ -165,8 +165,8 @@ if ! have python3;then
   die "Python3 is required"
 fi
 
-echo "Lib: ${LIB}"
-echo "Flags: ${ARGS[@]}"
+$DEBUG && echo "Lib: ${LIB}"
+$DEBUG && echo "Flags: ${ARGS[@]}"
 if have $LIB ; then
   FLAG_PARSE "${ARGS[@]}"
   GET_MAN "$LIB" "$FLAGS[@]"
